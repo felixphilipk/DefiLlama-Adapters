@@ -79,7 +79,7 @@ async function tvl(chain) {
 module.exports = {
     methodology: '...', // Include an appropriate description of the methodology
     ethereum: {
-        tvl: () => tvl('goerli'), // Assuming 'goerli' is your Ethereum chain
+        tvl: () => tvl('goerli'), 
     },
     polygon: {
         tvl: () => tvl('polygon'),
