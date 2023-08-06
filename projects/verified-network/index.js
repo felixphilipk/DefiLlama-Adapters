@@ -19,8 +19,8 @@ const contracts = {
 };
 
 const chainsProviders = {
-    goerli: 'https://goerli.infura.io/v3/324d7d968bb245e39b4edcda5a16c7a4',
-   polygon: 'https://polygon-mumbai.infura.io/v3/324d7d968bb245e39b4edcda5a16c7a4',
+    goerli: 'https://mainnet.infura.io/v3/324d7d968bb245e39b4edcda5a16c7a4',
+    polygon: 'https://polygon-mainnet.infura.io/v3/324d7d968bb245e39b4edcda5a16c7a4',
 };
 
 async function getChainBlocks(chain) {
@@ -43,60 +43,54 @@ async function getEvents(chain, contractAddress, abi, eventName, fromBlock, toBl
     return logs.map(log => contract.interface.parseLog(log));
 }
 
-async function tvl(timestamp) {
+async function tvl(chain) {
     let totalTVL = ethers.BigNumber.from('0');
     const balances = {};
-    const chains = ['goerli', 'polygon'];
 
-    for (let chain of chains) {
-        const fromBlock = 1;  // Adjust as per your requirements
-        const toBlock = await getChainBlocks(chain);
+    const fromBlock = 1;  // Adjust as per your requirements
+    const toBlock = await getChainBlocks(chain);
 
-        const primaryEvents = await getEvents(chain, contracts[chain].primary, primaryIssueManagerABI, 'subscribers', fromBlock, toBlock);
+    const primaryEvents = await getEvents(chain, contracts[chain].primary, primaryIssueManagerABI, 'subscribers', fromBlock, toBlock);
 
-        primaryEvents.forEach(event => {
+    primaryEvents.forEach(event => {
+        if (event.args.cashSwapped) {
             const cashSwapped = ethers.BigNumber.from(event.args.cashSwapped);
             const currency = event.args.currency;
-           totalTVL = totalTVL.add(cashSwapped);
+            totalTVL = totalTVL.add(cashSwapped);
             sdk.util.sumSingleBalance(balances, currency, cashSwapped);
-           
-        });
+        }
+    });
 
-        const secondaryEvents = await getEvents(chain, contracts[chain].secondary, secondaryIssueManagerABI, 'subscribers', fromBlock, toBlock);
+    const secondaryEvents = await getEvents(chain, contracts[chain].secondary, secondaryIssueManagerABI, 'subscribers', fromBlock, toBlock);
 
-        secondaryEvents.forEach(event => {
+    secondaryEvents.forEach(event => {
+        if (event.args.amount) {
             const amount = ethers.BigNumber.from(event.args.amount);
             totalTVL = totalTVL.add(amount);
             sdk.util.sumSingleBalance(balances, event.args.currencySettled, amount);
-            
-        });
+        }
+    });
 
-    
-    }
-
-    // Calculate totalTVL using the sdk.util.sumSingleBalance function
     sdk.util.sumSingleBalance(balances, 'total', totalTVL);
 
     return balances;
-
-
-    
 }
 
 module.exports = {
     methodology: '...', // Include an appropriate description of the methodology
     ethereum: {
-        tvl, // Export the tvl function
+        tvl: () => tvl('goerli'), // Assuming 'goerli' is your Ethereum chain
     },
     polygon: {
-        tvl, // Export the tvl function
+        tvl: () => tvl('polygon'),
     },
-};
+}
 
+// Call the tvl functions for testing
+module.exports.ethereum.tvl()
+    .then(result => console.log('Ethereum:', result))
+    .catch(error => console.error('Ethereum Error:', error));
 
-
-// Call the tvl function for testing
-tvl('testTimestamp')
-  .then(result => console.log(result))
-  .catch(error => console.error(error));
-  
+module.exports.polygon.tvl()
+    .then(result => console.log('Polygon:', result))
+    .catch(error => console.error('Polygon Error:', error));
